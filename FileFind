@@ -6,7 +6,7 @@ from time import sleep
 canBeInFileNames = [ "!", "#", "$", "%", "&", "(", ")", "*", "+", ",", "-", ".", ":", ";", "<", "=", ">", "@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "[", "]", "^", "_", "`", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "{", "|", "}", "~" ]
 otherCodes = { 48:0, 49:1, 50:2, 51:3, 52:4, 53:5, 54:6, 55:7, 56:8, 57:9, 47:"/" }
 def index():
-	return subprocess.check_output(["locate", "/home", "/media" ]).split("\n")
+	return subprocess.check_output(["locate", "/home" ]).split("\n")
 global fileList
 fileList = index()
 def search(keyword,toSearch):
