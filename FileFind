@@ -1,0 +1,128 @@
+#!/usr/bin/env python2
+# (c) Copyright 2014 J0sh, Inc.
+
+import sys, os, subprocess, curses
+from time import sleep
+canBeInFileNames = [ "!", "#", "$", "%", "&", "(", ")", "*", "+", ",", "-", ".", ":", ";", "<", "=", ">", "@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "[", "]", "^", "_", "`", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "{", "|", "}", "~" ]
+otherCodes = { 48:0, 49:1, 50:2, 51:3, 52:4, 53:5, 54:6, 55:7, 56:8, 57:9, 47:"/" }
+def index():
+	return subprocess.check_output(["locate", "/home", "/media" ]).split("\n")
+global fileList
+fileList = index()
+def search(keyword,toSearch):
+	results = []
+	if keyword == "":
+		return []
+	for x in toSearch:
+		if x.lower().find(keyword.lower()) != -1:
+			results.append(x)
+	return results
+searchTerm = ""
+window = curses.initscr()
+curses.noecho()
+curses.curs_set(0)
+window.keypad(1)
+rows, cols = window.getmaxyx()
+outputBox = window.subwin(1,1)
+scrollBox = window.subwin(1,0)
+textBox = window.subpad(1,cols,0,0)
+textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+textBox.refresh()
+outBoxHeight = outputBox.getmaxyx()[0]
+outboxWidth  = outputBox.getmaxyx()[1]
+scrollPosition = 0
+scrollIndicator = ">"
+scrollBox.addstr(0,0,scrollIndicator)
+maxScroll = scrollBox.getmaxyx()[0] - 1
+searchResults = [index()]
+searchResultsLength = 0
+selectedFile = ""
+
+while True:
+	event = window.getch()
+	if event < 256 and chr(event) in canBeInFileNames:
+		# Most letters
+		searchTerm = "{x}{y}".format(x=searchTerm,y=chr(event))
+		textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+		textBox.addstr(0,0,str(searchTerm),curses.A_REVERSE)
+		searchResults.append(search(searchTerm,searchResults[-1]))
+	elif event in otherCodes:
+		# letters and some other misc characters
+		searchTerm = "{x}{y}".format(x=searchTerm,y=str(otherCodes[event]))
+		textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+		textBox.addstr(0,0,searchTerm,curses.A_REVERSE)
+		searchResults.append(search(searchTerm,searchResults[-1]))
+	elif event == 32:
+		# Space Handler
+		searchTerm = "{x} ".format(x=searchTerm)
+		textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+		textBox.addstr(0,0,searchTerm,curses.A_REVERSE)
+		searchResults.append(search(searchTerm,searchResults[-1]))
+	elif event == 127:
+		# Backspace
+		if searchTerm != "":
+			searchTerm = searchTerm[:-1]
+			textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+			if searchTerm != "":
+				textBox.addstr(0,0,searchTerm,curses.A_REVERSE)
+			if searchResults != []:
+				searchResults.remove(searchResults[-1])
+	elif event == curses.KEY_DOWN:
+		# scroll down
+		scrollBox.addstr(scrollPosition,0," ")
+		if scrollPosition < maxScroll and  (scrollPosition) < (searchResultsLength - 1):
+			scrollPosition += 1
+		scrollBox.addstr(scrollPosition,0,scrollIndicator)
+	elif event == curses.KEY_UP:
+		# scroll up
+		scrollBox.addstr(scrollPosition,0," ")
+		if scrollPosition > 0:
+			scrollPosition -= 1
+		scrollBox.addstr(scrollPosition,0,scrollIndicator)
+	elif event == curses.KEY_ENTER or event == 10:
+		selectedFile = searchResults[-1][scrollPosition]
+		os.system('/usr/bin/xdg-open "{x}" >/dev/null 2>&1 & exit'.format(x=selectedFile))
+		searchTerm = ""
+		textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+		searchResults = [index()]
+		# break
+	elif event == curses.KEY_F2:
+		# clear
+		searchTerm = ""
+		textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+		searchResults = [index()]
+	elif event == curses.KEY_F4 or event == 27:
+		break
+	else:
+		textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
+		textBox.addstr(0,0,"Keycode:")
+		textBox.addstr(0,9,str(event))
+	outputBox.clear()
+	if searchResults != []:
+		searchResultsLength = len(searchResults[-1])
+		if searchResultsLength > outBoxHeight:
+			lines = outBoxHeight
+		elif searchResultsLength < outBoxHeight:
+			lines = searchResultsLength
+		for line in xrange(lines):
+			outputBox.addnstr(line,0,searchResults[-1][line],outboxWidth)
+		if scrollPosition > searchResultsLength:
+			scrollPosition = searchResultsLength
+		if searchResults[-1] != []:
+			outputBox.addstr(scrollPosition,0,searchResults[-1][scrollPosition],curses.A_REVERSE)
+	else:
+		searchResultsLength = 0
+	scrollBox.refresh()
+	textBox.refresh()
+	outputBox.refresh()
+	window.refresh()
+
+curses.endwin()
+
+# if selectedFile != "":
+# 	os.system('/usr/bin/xdg-open "{x}" >/dev/null 2>&1 & exit'.format(x=selectedFile))
+	# subprocess.Popen(['xdg-open',selectedFile])#,stdout=subprocess.PIPE)
+	# os.execl('/usr/bin/xdg-open',str(selectedFile))
+	# os.spawnlp(os.P_NOWAIT,'/usr/bin/xdg-open',[selectedFile])
+	# exit(1)
+	# sleep(100)
