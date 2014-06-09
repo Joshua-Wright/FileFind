@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# (c) Copyright 2014 J0sh, Inc.
+# (c) Copyright 2014 Josh Wright
 
 import sys, os, subprocess, curses
 from time import sleep
@@ -17,6 +17,7 @@ def search(keyword,toSearch):
 		if x.lower().find(keyword.lower()) != -1:
 			results.append(x)
 	return results
+
 searchTerm = ""
 window = curses.initscr()
 curses.noecho()
@@ -30,6 +31,7 @@ textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
 textBox.refresh()
 outBoxHeight = outputBox.getmaxyx()[0]
 outboxWidth  = outputBox.getmaxyx()[1]
+global scrollPosition
 scrollPosition = 0
 scrollIndicator = ">"
 scrollBox.addstr(0,0,scrollIndicator)
@@ -37,6 +39,45 @@ maxScroll = scrollBox.getmaxyx()[0] - 1
 searchResults = [index()]
 searchResultsLength = 0
 selectedFile = ""
+
+def refreshAll():
+	scrollBox.refresh()
+	textBox.refresh()
+	outputBox.refresh()
+	window.refresh()
+	return True
+def writeSearchResults():
+	if searchResults != []:
+		searchResultsLength = len(searchResults[-1])
+		if searchResultsLength > outBoxHeight:
+			lines = outBoxHeight
+		elif searchResultsLength < outBoxHeight:
+			lines = searchResultsLength
+		for line in xrange(lines):
+			outputBox.addnstr(line,0,searchResults[-1][line],outboxWidth)
+		if scrollPosition > searchResultsLength:
+			global scrollPosition
+			scrollPosition = searchResultsLength
+		if searchResults[-1] != []:
+			outputBox.addstr(scrollPosition,0,searchResults[-1][scrollPosition],curses.A_REVERSE)
+	else:
+		searchResultsLength = 0
+	return True
+def scroll(dirrection):
+	oldScrollPosition = scrollPosition
+	scrollBox.addstr(scrollPosition,0," ")
+	if dirrection == 'up' and scrollPosition < maxScroll and (scrollPosition) < (searchResultsLength - 1):
+		global scrollPosition
+		scrollPosition = oldScrollPosition + 1
+	elif dirrection == 'down' and scrollPosition > 0:
+		global scrollPosition
+		scrollPosition = oldScrollPosition - 1
+	elif dirrection == 'top':
+		global scrollPosition
+		scrollPosition = 0
+	scrollBox.addstr(scrollPosition,0,scrollIndicator)
+	return True
+
 
 while True:
 	event = window.getch()
@@ -69,23 +110,29 @@ while True:
 				searchResults.remove(searchResults[-1])
 	elif event == curses.KEY_DOWN:
 		# scroll down
-		scrollBox.addstr(scrollPosition,0," ")
-		if scrollPosition < maxScroll and  (scrollPosition) < (searchResultsLength - 1):
-			scrollPosition += 1
-		scrollBox.addstr(scrollPosition,0,scrollIndicator)
+		# scrollBox.addstr(scrollPosition,0," ")
+		# if scrollPosition < maxScroll and  (scrollPosition) < (searchResultsLength - 1):
+		# 	scrollPosition += 1
+		# scrollBox.addstr(scrollPosition,0,scrollIndicator)
+		scroll('down')
 	elif event == curses.KEY_UP:
 		# scroll up
-		scrollBox.addstr(scrollPosition,0," ")
-		if scrollPosition > 0:
-			scrollPosition -= 1
-		scrollBox.addstr(scrollPosition,0,scrollIndicator)
+		# scrollBox.addstr(scrollPosition,0," ")
+		# if scrollPosition > 0:
+		# 	scrollPosition -= 1
+		# scrollBox.addstr(scrollPosition,0,scrollIndicator)
+		scroll('up')
 	elif event == curses.KEY_ENTER or event == 10:
 		selectedFile = searchResults[-1][scrollPosition]
 		os.system('/usr/bin/xdg-open "{x}" >/dev/null 2>&1 & exit'.format(x=selectedFile))
 		searchTerm = ""
 		textBox.addstr(0,0,(" "*(cols-1)),curses.A_REVERSE)
 		searchResults = [index()]
-		# break
+		# scrollBox.addstr(scrollPosition,0," ")
+		# if scrollPosition < maxScroll and  (scrollPosition) < (searchResultsLength - 1):
+		# 	scrollPosition += 1
+		# scrollBox.addstr(scrollPosition,0,scrollIndicator)
+		scroll('top')
 	elif event == curses.KEY_F2:
 		# clear
 		searchTerm = ""
@@ -98,31 +145,6 @@ while True:
 		textBox.addstr(0,0,"Keycode:")
 		textBox.addstr(0,9,str(event))
 	outputBox.clear()
-	if searchResults != []:
-		searchResultsLength = len(searchResults[-1])
-		if searchResultsLength > outBoxHeight:
-			lines = outBoxHeight
-		elif searchResultsLength < outBoxHeight:
-			lines = searchResultsLength
-		for line in xrange(lines):
-			outputBox.addnstr(line,0,searchResults[-1][line],outboxWidth)
-		if scrollPosition > searchResultsLength:
-			scrollPosition = searchResultsLength
-		if searchResults[-1] != []:
-			outputBox.addstr(scrollPosition,0,searchResults[-1][scrollPosition],curses.A_REVERSE)
-	else:
-		searchResultsLength = 0
-	scrollBox.refresh()
-	textBox.refresh()
-	outputBox.refresh()
-	window.refresh()
-
+	writeSearchResults()
+	refreshAll()
 curses.endwin()
-
-# if selectedFile != "":
-# 	os.system('/usr/bin/xdg-open "{x}" >/dev/null 2>&1 & exit'.format(x=selectedFile))
-	# subprocess.Popen(['xdg-open',selectedFile])#,stdout=subprocess.PIPE)
-	# os.execl('/usr/bin/xdg-open',str(selectedFile))
-	# os.spawnlp(os.P_NOWAIT,'/usr/bin/xdg-open',[selectedFile])
-	# exit(1)
-	# sleep(100)
