@@ -8,17 +8,18 @@ from tempfile import TemporaryFile
 indexFile = "/home/j0sh/Documents/git/FileFind/index"
 historyFile = "/home/j0sh/Documents/git/FileFind/test"
 class main(object):
+	lineHeight = str(30)
+	exclude = ("/mnt/home/j0sh/.config/",
+		"/mnt/home/j0sh/.PlayOnLinux/",
+		"/mnt/home/j0sh/.cache/",
+		"/mnt/home/j0sh/.mozilla/",
+		"/mnt/home/j0sh/.local/share/Steam/",
+		"/mnt/home/j0sh/.xbmc/",
+		"/home/j0sh/Data-btrfs/.systemfiles/")
+	customLines = {'fixmouse':'xinput set-button-map "Logitech Unifying Device. Wireless PID:4013" 1 2 1 4 5 3 3 3 3 3 3;xinput set-button-map "USB Optical Wheel Mouse" 3 2 1 4 5 3 3 3 3 3 3;xinput --set-prop 10 "Device Accel Adaptive Deceleration" 2'}
 	def __init__(self,historyFile,doIndex,indexFile,doInteractive=True):
 		self.historyFile = historyFile
 		self.indexFile = indexFile
-		self.lineHeight = str(43)
-		self.exclude = ("/mnt/home/j0sh/.config/",
-			"/mnt/home/j0sh/.PlayOnLinux/",
-			"/mnt/home/j0sh/.cache/",
-			"/mnt/home/j0sh/.mozilla/",
-			"/mnt/home/j0sh/.local/share/Steam/",
-			"/mnt/home/j0sh/.xbmc/",
-			"/home/j0sh/Data-btrfs/.systemfiles/")
 		self.readHistory()
 		if doIndex:
 			self.makeIndex()
@@ -59,25 +60,32 @@ class main(object):
 		for line in subprocess.check_output(["locate", "/home/j0sh/Data-btrfs/" ]).split("\n"):
 			if not line.startswith(self.exclude):
 				self.fileList.append(line)
+		# extra
+		self.fileList.extend(self.customLines)
 		self.doHistoryReOrdering()
-		return self.fileList
+	def handleSelection(self,selection):
+		if selection in self.customLines:
+			os.system(self.customLines[selection])
+		else:
+			os.system("xdg-open "+"'"+selection+"'")
 	def mainLoop(self):
-		# pass
 		with TemporaryFile() as fileListFile:
 			fileListFile.write('\n'.join(self.fileList))
 			fileListFile.seek(0)
 			try:
 				selection = subprocess.check_output(["dmenu", "-i", "-l", self.lineHeight, "-fn", "DejaVu Sans Mono-11", "-nb", "#000" ],stdin=fileListFile)
 				selection = selection.strip('\n')
-				os.system("xdg-open "+"'"+selection+"'")
+				if not selection in self.fileList:
+					exit()
+				self.handleSelection(selection)
+				# os.system("xdg-open "+"'"+selection+"'")
 			except:
 				selection = ''
-		try:
+		if selection in self.history:
 			self.history[selection] += 1
-		except:
+		else:
 			if selection != '':
 				self.history[selection] = 1
-	# def timeSinceLastIndex(self):
 if sys.argv[-1] == "IndexOnly":
 	mainClass = main(historyFile,True,indexFile,doInteractive=False)
 else:
