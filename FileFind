@@ -1,84 +1,97 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # (c) Copyright 2014 Josh Wright
 import subprocess
 import os
 import sys
 from tempfile import TemporaryFile
 
-indexFile = "/home/j0sh/Documents/git/FileFind/index"
-historyFile = "/home/j0sh/Documents/git/FileFind/test"
-class main(object):
-	lineHeight = str(30)
-	exclude = ("/mnt/home/j0sh/.config/",
-		"/mnt/home/j0sh/.PlayOnLinux/",
-		"/mnt/home/j0sh/.cache/",
-		"/mnt/home/j0sh/.mozilla/",
-		"/mnt/home/j0sh/.local/share/Steam/",
-		"/mnt/home/j0sh/.xbmc/",
-		"/home/j0sh/Data-btrfs/.systemfiles/")
-	customLines = {'fixmouse':'xinput set-button-map "Logitech Unifying Device. Wireless PID:4013" 1 2 1 4 5 3 3 3 3 3 3;xinput set-button-map "USB Optical Wheel Mouse" 3 2 1 4 5 3 3 3 3 3 3;xinput --set-prop 10 "Device Accel Adaptive Deceleration" 2'}
-	def __init__(self,historyFile,doIndex,indexFile,doInteractive=True):
-		self.historyFile = historyFile
-		self.indexFile = indexFile
-		self.readHistory()
-		if doIndex:
-			self.makeIndex()
-			self.writeIndex()
+index_file = "/home/j0sh/.FileFindIndex"
+history_file = "/home/j0sh/.FileFindHistory"
+
+class Main(object):
+
+	line_height = str(25)
+	exclude = (
+		"/home/j0sh/.", # catch-all for all dotfiles
+		)
+	custom_lines = {'fixmouse':'xinput set-button-map "Logitech Unifying Device. Wireless PID:4013" 1 2 1 4 5 3 3 3 3 3 3;xinput set-button-map "USB Optical Wheel Mouse" 3 2 1 4 5 3 3 3 3 3 3;xinput --set-prop 10 "Device Accel Adaptive Deceleration" 2'}
+
+	def __init__(self, history_file, do_index, index_file, do_interactive=True):
+		self.history_file = history_file
+		self.index_file   = index_file
+		if do_index:
+			self.make_index()
+			self.write_index()
 		else:
-			self.readIndex()
-		if doInteractive:
-			self.mainLoop()
-			self.writeHistory()
-	def readHistory(self):
-		with open(self.historyFile,'r') as importFile:
+			self.read_index()
+		self.read_history()
+		self.do_history_re_ordering()
+		if do_interactive:
+			self.main_loop()
+			self.write_history()
+
+	def read_history(self):
+		with open(self.history_file,'r') as importFile:
 			self.history = eval(importFile.read())
-	def writeHistory(self):
-		with open(self.historyFile,'w') as exportFile:
-			exportFile.write( str( self.history ).replace(',',',\n') )
-	def readIndex(self):
-		self.fileList = []
-		with open(self.indexFile,'r') as importFile:
-			for line in importFile.read().split('\n'):
-				self.fileList.append(line)
-	def writeIndex(self):
-		with open(self.indexFile,'w') as exportFile:
-			for line in self.fileList:
-				exportFile.write(line+'\n')
-	def doHistoryReOrdering(self):
+
+	def write_history(self):
+		with open(self.history_file,'w') as exportFile:
+			exportFile.write( str( self.history ).replace(", '",",\n '") )
+
+	def read_index(self):
+		self.file_list = []
+		with open(self.index_file,'r') as import_file:
+			for line in import_file.read().split('\n'):
+				self.file_list.append(line)
+
+	def write_index(self):
+		with open(self.index_file,'w') as export_file:
+			for line in self.file_list:
+				export_file.write(line+'\n')
+
+	def do_history_re_ordering(self):
+		# sort them, and then add sorted ones back to the front of the list
 		historyList = sorted(self.history,key=self.history.get)
 		for line in historyList[::-1]:
-			if line in self.fileList:
-				self.fileList.remove(line)
-				self.fileList.insert(0,line)
-	def makeIndex(self):
-		self.fileList = []
+			if line in self.file_list:
+				self.file_list.remove(line)
+				self.file_list.insert(0,line)
+
+	def make_index(self):
+		self.file_list = []
 		# home
-		for line in subprocess.check_output(["find", "/mnt/home" ]).split("\n"):
+		for line in subprocess.getoutput("find /home/j0sh -xdev -readable").split("\n"):
 			if not line.startswith(self.exclude):
-				self.fileList.append(line[4:])
-		# Data-btrfs
-		for line in subprocess.check_output(["locate", "/home/j0sh/Data-btrfs/" ]).split("\n"):
-			if not line.startswith(self.exclude):
-				self.fileList.append(line)
-		# extra
-		self.fileList.extend(self.customLines)
-		self.doHistoryReOrdering()
-	def handleSelection(self,selection):
-		if selection in self.customLines:
-			os.system(self.customLines[selection])
+				self.file_list.append(line)
+		self.file_list.extend(self.custom_lines)
+		self.do_history_re_ordering()
+		self.file_list.append('Rescan')
+
+	def handle_selection(self,selection):
+		if selection == "Rescan":
+			self.make_index()
+			self.write_index()
+			self.main_loop()
+		elif selection in self.custom_lines:
+			os.system(self.custom_lines[selection])
 		else:
 			os.system("xdg-open "+"'"+selection+"'")
-	def mainLoop(self):
-		with TemporaryFile() as fileListFile:
-			fileListFile.write('\n'.join(self.fileList))
-			fileListFile.seek(0)
+
+	def main_loop(self):
+		with TemporaryFile() as file_list_file:
+			file_list_file.write('\n'.join(self.file_list).encode('utf-8'))
+			file_list_file.seek(0)
 			try:
-				selection = subprocess.check_output(["dmenu", "-i", "-l", self.lineHeight, "-fn", "DejaVu Sans Mono-11", "-nb", "#000" ],stdin=fileListFile)
+				# uses dmenu-manjaro with xft font support
+				selection = subprocess.check_output(["dmenu", "-i", "-l", self.line_height,
+				  "-nb", "#000", "-fn", "Ubuntu Mono-16", "-f" ],stdin=file_list_file)
+				assert isinstance(selection, bytes)
+				selection = selection.decode('utf-8')
 				selection = selection.strip('\n')
-				if not selection in self.fileList:
+				print(selection)
+				if not selection in self.file_list:
 					exit()
-				self.handleSelection(selection)
-				# os.system("xdg-open "+"'"+selection+"'")
+				self.handle_selection(selection)
 			except:
 				selection = ''
 		if selection in self.history:
@@ -86,7 +99,10 @@ class main(object):
 		else:
 			if selection != '':
 				self.history[selection] = 1
-if sys.argv[-1] == "IndexOnly":
-	mainClass = main(historyFile,True,indexFile,doInteractive=False)
-else:
-	mainClass = main(historyFile,False,indexFile)
+
+
+if __name__ == '__main__':
+	if sys.argv[-1] == "IndexOnly":
+		main = Main(history_file,True,index_file,doInteractive=False)
+	else:
+		main = Main(history_file,False,index_file)
